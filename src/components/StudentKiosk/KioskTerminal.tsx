@@ -28,6 +28,8 @@ export const KioskTerminal: React.FC = () => {
     logoutStudent,
     currentStudent,
     kioskStep,
+    setKioskStep,
+    setKioskScreen,
     messages,
     triggerThermalPrint,
     completeThermalPrint,
@@ -131,6 +133,10 @@ export const KioskTerminal: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* STEP 1: KEYPAD LOGIN */}
+      {kioskStep === 'keypad' && (
+        <div className="space-y-6">
           <div className="text-center space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-500/40 text-[11px] font-mono font-bold uppercase">
               <Tv className="w-3.5 h-3.5" />

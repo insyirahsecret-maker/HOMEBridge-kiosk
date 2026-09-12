@@ -5,16 +5,14 @@ import { KioskTerminal } from './components/StudentKiosk/KioskTerminal';
 import { ParentPortal } from './components/ParentPortal/ParentPortal';
 import { AdminPortal } from './components/AdminPortal/AdminPortal';
 import { ThermalSlip } from './components/StudentKiosk/ThermalSlip';
-import { Tv, Smartphone, ShieldCheck, Home, RotateCcw } from 'lucide-react';
+import { ShieldCheck, Home, RotateCcw } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { 
-    currentView, 
-    goToLanding, 
-    goToKiosk, 
-    goToParent, 
+  const {
+    currentView,
+    goToLanding,
     goToAdmin,
-    activePrintSlip, 
+    activePrintSlip,
     students,
     resetToDefaults
   } = useKiosk();
@@ -64,30 +62,6 @@ const AppContent: React.FC = () => {
             >
               <Home className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Home</span>
-            </button>
-
-            <button
-              onClick={goToKiosk}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                currentView === 'kiosk'
-                  ? 'bg-gradient-to-r from-pink-500 to-cyan-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Student Kiosk</span>
-            </button>
-
-            <button
-              onClick={goToParent}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                currentView === 'parent'
-                  ? 'bg-gradient-to-r from-pink-500 to-cyan-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Parent Portal</span>
             </button>
           </nav>
 
