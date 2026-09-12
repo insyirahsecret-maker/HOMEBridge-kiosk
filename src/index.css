@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #050811;
+  color: #f1f5f9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090e1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #06b6d4;
+}
+
+/* CRT Scanline & Glitch subtle overlay */
+.cyber-grid-bg {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+}
+
+.kiosk-screen-frame {
+  position: relative;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  box-shadow: 
+    0 0 25px rgba(6, 182, 212, 0.15),
+    inset 0 0 35px rgba(6, 182, 212, 0.08);
+  border-radius: 1rem;
+}
+
+.glass-panel {
+  background: rgba(13, 21, 39, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Keypad tactile animations */
+.keypad-btn {
+  transition: all 0.08s ease-in-out;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.keypad-btn:active {
+  transform: scale(0.94);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+/* Privacy buffer purge animation */
+@keyframes purgeWipe {
+  0% {
+    filter: blur(0px) contrast(100%);
+    opacity: 1;
+  }
+  40% {
+    filter: blur(4px) contrast(200%) brightness(1.5);
+    background-color: rgba(244, 63, 94, 0.2);
+  }
+  100% {
+    filter: blur(10px) contrast(50%);
+    opacity: 0.15;
+  }
+}
+
+.privacy-purging {
+  animation: purgeWipe 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* ==========================================================================
+   CSS @media print — Xprinter XP-58II / XP-Q90 Thermal Printer
+   Print head: 48mm usable (384 dots @ 203 DPI) on 58mm paper roll
+   Zero-Screen Privacy Protocol Compliant
+   ========================================================================== */
+
+@page {
+  /* Xprinter XP-58II / XP-Q90: 58mm paper roll */
+  size: 58mm auto;
+  margin: 0mm;
+}
+
+@media print {
+  /* Reset all screen layout for thermal output */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 58mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide everything on screen by default */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Only make #thermal-slip and its children visible */
+  #thermal-slip,
+  #thermal-slip * {
+    visibility: visible !important;
+  }
+
+  /* === Xprinter XP-58II / XP-Q90 Calibration ===
+     Print head width:  48mm  (384 dots @ 203 DPI)
+     Paper roll width:  58mm
+     Left margin:       5mm   (printer default hardware margin)
+     Usable area:       48mm
+  */
+  #thermal-slip {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 48mm !important;
+    max-width: 48mm !important;
+    margin: 0 !important;
+    padding: 2mm 1mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    /* Monospace is essential for thermal receipt alignment */
+    font-family: 'Courier New', Courier, 'Lucida Console', monospace !important;
+    /* 8pt @ 203 DPI = ~22 chars per line on 48mm width */
+    font-size: 8pt !important;
+    line-height: 1.35 !important;
+    display: block !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* High contrast black for thermal head clarity */
+  #thermal-slip h1,
+  #thermal-slip h2,
+  #thermal-slip h3,
+  #thermal-slip p,
+  #thermal-slip span,
+  #thermal-slip div,
+  #thermal-slip strong {
+    color: #000000 !important;
+    background: transparent !important;
+  }
+
+  /* Bold text - thermal head prints bold clearly */
+  #thermal-slip strong,
+  #thermal-slip b {
+    font-weight: 900 !important;
+  }
+
+  /* Dashed border boxes (message content area) */
+  #thermal-slip .border {
+    border-color: #000000 !important;
+  }
+
+  /* Barcode column bars — max contrast for scanner */
+  #thermal-slip span[style*="backgroundColor"] {
+    background-color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all interactive UI */
+  .no-print,
+  button,
+  nav,
+  header {
+    display: none !important;
+  }
+}
+
