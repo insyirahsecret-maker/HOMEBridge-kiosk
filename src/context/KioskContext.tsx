@@ -1,21 +1,55 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  Student, 
-  Parent, 
-  KioskMessage, 
-  SchoolAnnouncement, 
-  AuditLogItem, 
+import { ref, onValue, set as fbSet, update as fbUpdate, remove as fbRemove } from 'firebase/database';
+import { db } from '../firebase';
+import {
+  Student,
+  Parent,
+  KioskMessage,
+  SchoolAnnouncement,
+  AuditLogItem,
   ViewMode,
   KioskStep,
   ParentRelationship
 } from '../types';
-import { 
-  INITIAL_STUDENTS, 
-  INITIAL_PARENTS, 
-  INITIAL_MESSAGES, 
-  INITIAL_ANNOUNCEMENTS 
+import {
+  INITIAL_STUDENTS,
+  INITIAL_PARENTS,
+  INITIAL_MESSAGES,
+  INITIAL_ANNOUNCEMENTS
 } from '../data/mockData';
 import { soundEngine } from '../utils/audio';
+
+// Live data lives in Firebase Realtime Database so every device (kiosk,
+// parent laptop, admin tablet, ...) sees the same messages/students/etc in
+// real time instead of each browser having its own isolated localStorage
+// copy. Collections are stored server-side as {id: item} maps so writes
+// from different devices merge instead of clobbering each other.
+function arrayToMap<T extends { id: string }>(items: T[]): Record<string, T> {
+  return items.reduce((acc, item) => {
+    acc[item.id] = item;
+    return acc;
+  }, {} as Record<string, T>);
+}
+
+function subscribeCollection<T extends { id: string }>(
+  path: string,
+  seedData: T[],
+  setState: React.Dispatch<React.SetStateAction<T[]>>
+) {
+  const collectionRef = ref(db, path);
+  let seeded = false;
+  return onValue(collectionRef, (snapshot) => {
+    const value = snapshot.val();
+    if (value) {
+      setState(Object.values(value) as T[]);
+    } else if (!seeded) {
+      // Nothing in the database yet for this path - seed it with the
+      // default demo data so every device starts from the same baseline.
+      seeded = true;
+      fbSet(collectionRef, arrayToMap(seedData));
+    }
+  });
+}
 
 interface RegisterStudentParams {
   id: string;
@@ -111,59 +145,33 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPosterModalOpen, setIsPosterModalOpen] = useState(false);
 
-  // Persistence in localStorage
-  const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem('hb_students_v3');
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
-  });
+  // Live, cross-device data (see subscribeCollection above). Initial values
+  // here are just the pre-sync placeholder shown for a split second before
+  // the first Firebase snapshot arrives.
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
+  const [messages, setMessages] = useState<KioskMessage[]>(INITIAL_MESSAGES);
+  const [announcements, setAnnouncements] = useState<SchoolAnnouncement[]>(INITIAL_ANNOUNCEMENTS);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
 
-  const [parents, setParents] = useState<Parent[]>(() => {
-    const saved = localStorage.getItem('hb_parents_v3');
-    return saved ? JSON.parse(saved) : INITIAL_PARENTS;
-  });
-
-  const [messages, setMessages] = useState<KioskMessage[]>(() => {
-    const saved = localStorage.getItem('hb_messages_v3');
-    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
-  });
-
-  const [announcements, setAnnouncements] = useState<SchoolAnnouncement[]>(() => {
-    const saved = localStorage.getItem('hb_announcements_v3');
-    return saved ? JSON.parse(saved) : INITIAL_ANNOUNCEMENTS;
-  });
-
-  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
-    const saved = localStorage.getItem('hb_audit_logs_v3');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'log-1',
-        action: 'KIOSK_LOGIN',
-        timestamp: '8/26/2026, 2:00:00 PM',
-        details: 'System Initialized - SBP Integrasi Kuantan Kiosk Online',
-        terminalId: 'KIOSK-INTEK-01'
-      }
+  useEffect(() => {
+    const unsubscribers = [
+      subscribeCollection<Student>('students', INITIAL_STUDENTS, setStudents),
+      subscribeCollection<Parent>('parents', INITIAL_PARENTS, setParents),
+      subscribeCollection<KioskMessage>('messages', INITIAL_MESSAGES, setMessages),
+      subscribeCollection<SchoolAnnouncement>('announcements', INITIAL_ANNOUNCEMENTS, setAnnouncements),
+      subscribeCollection<AuditLogItem>('auditLogs', [
+        {
+          id: 'log-1',
+          action: 'KIOSK_LOGIN',
+          timestamp: '8/26/2026, 2:00:00 PM',
+          details: 'System Initialized - SBP Integrasi Kuantan Kiosk Online',
+          terminalId: 'KIOSK-INTEK-01'
+        }
+      ], setAuditLogs)
     ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('hb_students_v3', JSON.stringify(students));
-  }, [students]);
-
-  useEffect(() => {
-    localStorage.setItem('hb_parents_v3', JSON.stringify(parents));
-  }, [parents]);
-
-  useEffect(() => {
-    localStorage.setItem('hb_messages_v3', JSON.stringify(messages));
-  }, [messages]);
-
-  useEffect(() => {
-    localStorage.setItem('hb_announcements_v3', JSON.stringify(announcements));
-  }, [announcements]);
-
-  useEffect(() => {
-    localStorage.setItem('hb_audit_logs_v3', JSON.stringify(auditLogs));
-  }, [auditLogs]);
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, []);
 
   // Student Session
   const [selectedStudentId, setSelectedStudentId] = useState<string>('TEST01');
@@ -255,7 +263,7 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         studentName: targetStudent.name,
         terminalId
       };
-      setAuditLogs(prev => [newLog, ...prev]);
+      fbSet(ref(db, `auditLogs/${newLog.id}`), newLog);
       return true;
     } else {
       setPinError('Invalid 4-digit PIN code. Access denied.');
@@ -279,17 +287,11 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const completeThermalPrint = (messageId: string) => {
     const printedTimestamp = new Date().toLocaleString('en-US');
 
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === messageId) {
-        return {
-          ...msg,
-          status: 'PRINTED_COMPLETED',
-          printedAt: printedTimestamp,
-          terminalId
-        };
-      }
-      return msg;
-    }));
+    fbUpdate(ref(db, `messages/${messageId}`), {
+      status: 'PRINTED_COMPLETED',
+      printedAt: printedTimestamp,
+      terminalId
+    });
 
     const printedMsg = messages.find(m => m.id === messageId);
     const targetStudent = students.find(s => s.id === printedMsg?.studentId);
@@ -315,7 +317,10 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       terminalId
     };
 
-    setAuditLogs(prev => [purgeLog, newLog, ...prev]);
+    fbUpdate(ref(db), {
+      [`auditLogs/${purgeLog.id}`]: purgeLog,
+      [`auditLogs/${newLog.id}`]: newLog
+    });
 
     setIsPurged(true);
     soundEngine.playPurge();
@@ -373,7 +378,7 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       authCode
     };
 
-    setMessages(prev => [newMsg, ...prev]);
+    fbSet(ref(db, `messages/${newMsg.id}`), newMsg);
     soundEngine.playSuccess();
 
     const targetStudent = students.find(s => s.id === newMsg.studentId);
@@ -386,7 +391,7 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       studentName: targetStudent?.name,
       authCode
     };
-    setAuditLogs(prev => [log, ...prev]);
+    fbSet(ref(db, `auditLogs/${log.id}`), log);
   };
 
   // Admin Registration
@@ -410,17 +415,11 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         relationship: data.relationship || 'Father',
         studentIds: [cleanId]
       };
-      setParents(prev => [...prev, parent as Parent]);
+      fbSet(ref(db, `parents/${parentId}`), parent);
     } else {
-      setParents(prev => prev.map(p => {
-        if (p.id === parentId) {
-          return {
-            ...p,
-            studentIds: Array.from(new Set([...p.studentIds, cleanId]))
-          };
-        }
-        return p;
-      }));
+      fbUpdate(ref(db, `parents/${parentId}`), {
+        studentIds: Array.from(new Set([...parent.studentIds, cleanId]))
+      });
     }
 
     const newStudent: Student = {
@@ -437,7 +436,7 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       avatarEmoji: '👨‍🎓'
     };
 
-    setStudents(prev => [...prev, newStudent]);
+    fbSet(ref(db, `students/${newStudent.id}`), newStudent);
     soundEngine.playSuccess();
 
     const log: AuditLogItem = {
@@ -448,7 +447,7 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       studentId: newStudent.id,
       studentName: newStudent.name
     };
-    setAuditLogs(prev => [log, ...prev]);
+    fbSet(ref(db, `auditLogs/${log.id}`), log);
 
     return true;
   };
@@ -459,24 +458,28 @@ export const KioskProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: 'ann-' + Date.now(),
       createdAt: new Date().toLocaleString('en-US')
     };
-    setAnnouncements(prev => [newAnn, ...prev]);
+    fbSet(ref(db, `announcements/${newAnn.id}`), newAnn);
     soundEngine.playSuccess();
   };
 
   const deleteAnnouncement = (id: string) => {
-    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    fbRemove(ref(db, `announcements/${id}`));
   };
 
   const resetToDefaults = () => {
-    localStorage.removeItem('hb_students_v3');
-    localStorage.removeItem('hb_parents_v3');
-    localStorage.removeItem('hb_messages_v3');
-    localStorage.removeItem('hb_announcements_v3');
-    localStorage.removeItem('hb_audit_logs_v3');
-    setStudents(INITIAL_STUDENTS);
-    setParents(INITIAL_PARENTS);
-    setMessages(INITIAL_MESSAGES);
-    setAnnouncements(INITIAL_ANNOUNCEMENTS);
+    fbSet(ref(db, 'students'), arrayToMap(INITIAL_STUDENTS));
+    fbSet(ref(db, 'parents'), arrayToMap(INITIAL_PARENTS));
+    fbSet(ref(db, 'messages'), arrayToMap(INITIAL_MESSAGES));
+    fbSet(ref(db, 'announcements'), arrayToMap(INITIAL_ANNOUNCEMENTS));
+    fbSet(ref(db, 'auditLogs'), arrayToMap([
+      {
+        id: 'log-' + Date.now(),
+        action: 'KIOSK_LOGIN',
+        timestamp: new Date().toLocaleString('en-US'),
+        details: 'System reset to default demo data',
+        terminalId
+      } as AuditLogItem
+    ]));
     setSelectedStudentId('TEST01');
     setCurrentStudent(null);
     setKioskStep('keypad');
